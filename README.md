@@ -1,3 +1,7 @@
+# Quasar
+
+**Quasar is a modified version of [Asar](https://github.com/RPGHacker/asar)**, forked from `asar_19` at `5fd539c` to make patching faster, for [Pipe Dream](https://github.com/john-sparwasser/pipe-dream). It keeps Asar's API, its library name (`asar.dll` / `libasar.so` / `libasar.dylib`) and its licence (LGPL v3 or later; see `LICENSE`). Asar was created by Alcaro and is maintained by RPGHacker; the changes on this branch are listed in its git history.
+
 # Asar
 [![build status (GitHub Actions)](https://github.com/RPGHacker/asar/actions/workflows/cmake.yml/badge.svg)](https://github.com/RPGHacker/asar/actions/workflows/cmake.yml) [![muncher build status (r9.pm)](https://r9.pm/asar-badge.php?branch=asar_19)](https://r9.pm/asar-overview.php)
 
