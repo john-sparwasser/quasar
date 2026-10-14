@@ -36,6 +36,15 @@ char get_native_path_separator()
 	return '\\';
 }
 
+// ponytail: no cache on Windows until someone measures it there; FAT's 2-second mtime would
+// need more than a stamp to be safe.
+bool get_file_stamp(const char* path, file_stamp* out)
+{
+	(void)path;
+	(void)out;
+	return false;
+}
+
 bool check_is_regular_file(const char* path)
 {
 	return !(GetFileAttributes(path) & FILE_ATTRIBUTE_DIRECTORY);

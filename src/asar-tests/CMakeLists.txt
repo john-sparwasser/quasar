@@ -112,4 +112,25 @@ if(ASAR_GEN_DLL_TEST)
 		VERBATIM)
 	add_dependencies(run-tests run-dll-test)
 	set_property(TARGET run-dll-test PROPERTY EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+
+	# Quasar: the file cache must notice a source file edited between two patches.
+	add_executable(
+		asar-file-cache-test
+
+		"${CMAKE_CURRENT_SOURCE_DIR}/file-cache-test.cpp"
+
+		"${CMAKE_CURRENT_SOURCE_DIR}/../asar-dll-bindings/c/asardll.c"
+		"${CMAKE_CURRENT_SOURCE_DIR}/../asar-dll-bindings/c/asardll.h"
+	)
+
+	target_include_directories(asar-file-cache-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../asar-dll-bindings/c/")
+
+	set_asar_test_shared_properties(asar-file-cache-test)
+
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests-tmp-dll")
+	add_custom_target(run-file-cache-test
+		asar-file-cache-test "$<TARGET_FILE:asar>" "${CMAKE_CURRENT_SOURCE_DIR}/../../dummy_rom.sfc" "${CMAKE_CURRENT_BINARY_DIR}/tests-tmp-dll"
+		VERBATIM)
+	add_dependencies(run-tests run-file-cache-test)
+	set_property(TARGET run-file-cache-test PROPERTY EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 endif()

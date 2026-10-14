@@ -74,26 +74,24 @@ public:
 	{
 		if (path != "")
 		{
-			// randomdude999: checking this before file regularity to improve error messages
-			if(!file_exists((const char*)path)) return vfe_doesnt_exist;
-			if(!check_is_regular_file((const char*)path)) return vfe_not_regular_file;
-
+			// Quasar: open first and classify afterwards. The existence and regularity checks
+			// used to come before the open, costing two stats per file; now the regularity check
+			// alone runs on success, and both run only to explain a failure.
 			m_file_handle = fopen((const char*)path, "rb");
 
 			if (m_file_handle == nullptr)
 			{
-				if (errno == ENOENT)
-				{
-					return vfe_doesnt_exist;
-				}
-				else if (errno == EACCES)
-				{
-					return vfe_access_denied;
-				}
-				else
-				{
-					return vfe_unknown;
-				}
+				int err = errno;
+				if (err == ENOENT || !file_exists((const char*)path)) return vfe_doesnt_exist;
+				if (!check_is_regular_file((const char*)path)) return vfe_not_regular_file;
+				if (err == EACCES) return vfe_access_denied;
+				return vfe_unknown;
+			}
+
+			if (!check_is_regular_file((const char*)path))
+			{
+				close();
+				return vfe_not_regular_file;
 			}
 
 			return vfe_none;
@@ -134,6 +132,49 @@ private:
 
 
 
+// Quasar: physical files are cached across patches, keyed by path and validated by a stat. An
+// open costs tens of microseconds on macOS and a stat a small fraction of that, and a block
+// insert opens hundreds of files that rarely change between two runs.
+// ponytail: unbounded, process lifetime; add eviction if a long-lived host shows it growing.
+struct cached_file
+{
+	file_stamp stamp;
+	void* data;
+	size_t length;
+};
+static assocarr<cached_file> file_cache;
+
+static bool same_stamp(const file_stamp& a, const file_stamp& b)
+{
+	return a.size == b.size && a.mtime_ns == b.mtime_ns && a.inode == b.inode && a.dev == b.dev;
+}
+
+// Returns a file over the cached contents, reading the file first if the cache has no current
+// copy. On failure returns nullptr with the reason in *error.
+static virtual_file* open_cached(const string& path, const file_stamp& stamp, virtual_file_error* error)
+{
+	if (file_cache.exists(path))
+	{
+		cached_file& cached = file_cache.find(path);
+		if (same_stamp(cached.stamp, stamp)) return new memory_file(cached.data, cached.length);
+	}
+
+	physical_file file;
+	*error = file.open(path);
+	if (*error != vfe_none) return nullptr;
+	size_t length = file.get_size();
+	void* data = malloc(length ? length : 1);
+	length = file.read(data, 0, length);
+	file.close();
+
+	if (file_cache.exists(path)) free(file_cache.find(path).data);
+	cached_file& cached = file_cache.create(path);
+	cached.stamp = stamp;
+	cached.data = data;
+	cached.length = length;
+	return new memory_file(data, length);
+}
+
 void virtual_filesystem::initialize(const char** include_paths, size_t num_include_paths)
 {
 	m_include_paths.reset();
@@ -170,6 +211,25 @@ virtual_file_handle virtual_filesystem::open_file(const char* path, const char* 
 	{
 		case vft_physical_file:
 		{
+			file_stamp stamp;
+			if (get_file_stamp(absolutepath, &stamp))
+			{
+				if (!stamp.regular)
+				{
+					m_last_error = vfe_not_regular_file;
+					return INVALID_VIRTUAL_FILE_HANDLE;
+				}
+				virtual_file_error error = vfe_none;
+				virtual_file* cached = open_cached(absolutepath, stamp, &error);
+				if (cached == nullptr)
+				{
+					m_last_error = error;
+					return INVALID_VIRTUAL_FILE_HANDLE;
+				}
+				return static_cast<virtual_file_handle>(cached);
+			}
+
+			// No stamp for this file: read it as before, which also classifies a missing file.
 			physical_file* new_file = new physical_file;
 
 			if (new_file == nullptr)
