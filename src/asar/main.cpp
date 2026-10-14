@@ -326,6 +326,7 @@ struct stricompare {
 struct sourcefile {
 	char** contents;
 	int numlines;
+	uint32_t crc;//of the file as stored, for the symbols file
 };
 
 static assocarr<sourcefile> filecontents;
@@ -623,10 +624,11 @@ void assemblefile(const char * filename, bool toplevel)
 	sourcefile file;
 	file.contents = nullptr;
 	file.numlines = 0;
+	file.crc = 0;
 	int startif=numif;
 	if (!filecontents.exists(absolutepath))
 	{
-		char * temp= readfile(absolutepath, "");
+		char * temp= readfile(absolutepath, "", &file.crc);
 		if (!temp)
 		{
 			// RPG Hacker: This is so that we hopefully always end up with a proper decor
@@ -902,6 +904,14 @@ static void clearfile(const string & key, sourcefile& filecontent)
 	(void)key;
 	cfree(*filecontent.contents);
 	cfree(filecontent.contents);
+}
+
+// The CRC of an already-assembled source file, so the symbols file need not read it again.
+bool source_file_crc(const char * filename, uint32_t * out_crc)
+{
+	if (!filecontents.exists(filename)) return false;
+	*out_crc = filecontents.find(filename).crc;
+	return true;
 }
 
 static void adddefine(const string & key, string & value)

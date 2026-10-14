@@ -301,7 +301,7 @@ bool is_inlined() const
 };
 #define STR (string)
 
-char * readfile(const char * fname, const char * basepath);
+char * readfile(const char * fname, const char * basepath, uint32_t * raw_crc = nullptr);//raw_crc: CRC32 of the file as stored, before BOM and \r stripping
 char * readfilenative(const char * fname);
 bool readfile(const char * fname, const char * basepath, char ** data, int * len);//if you want an uchar*, cast it
 char ** nsplit(char * str, const char * key, int maxlen, int * len);

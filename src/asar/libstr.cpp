@@ -1,5 +1,6 @@
 #include "std-includes.h"
 #include "libstr.h"
+#include "crc32.h"
 #include "virtualfile.h"
 #include "asar.h"
 #include "warnings.h"
@@ -99,14 +100,18 @@ bool is_valid_utf8(const char* inp) {
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-char * readfile(const char * fname, const char * basepath)
+char * readfile(const char * fname, const char * basepath, uint32_t * raw_crc)
 {
 	virtual_file_handle myfile = filesystem->open_file(fname, basepath);
 	if (myfile == INVALID_VIRTUAL_FILE_HANDLE) return nullptr;
 	size_t datalen = filesystem->get_file_size(myfile);
 	char * data= typed_malloc(char, datalen+1);
-	data[filesystem->read_file(myfile, data, 0u, datalen)] = 0;
+	size_t gotlen = filesystem->read_file(myfile, data, 0u, datalen);
+	data[gotlen] = 0;
 	filesystem->close_file(myfile);
+	// Quasar: the symbols file wants each source file's CRC; taking it here, from bytes already
+	// read, saves re-reading every source file once per pass.
+	if (raw_crc) *raw_crc = crc32((const uint8_t*)data, (unsigned int)gotlen);
 	int inpos=0;
 	int outpos=0;
 	inpos += check_bom(data + inpos);
