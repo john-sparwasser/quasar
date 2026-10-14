@@ -2474,7 +2474,30 @@ void assembleblock(const char * block, bool isspecialline)
 		}
 		else
 		{
-			for (int i=start;i<end;i++) write1((unsigned int)data[i]);
+			// Quasar: a plain incbin went through write1 a byte at a time, and each byte recorded
+			// its own ROM write: a binary search and two memmoves of the block list. The whole
+			// file is written and recorded once when it lands in one mapped, contiguous run.
+			// ponytail: bank-cross-tolerant mode keeps the byte loop; step() hops banks per byte there.
+			int n = end-start;
+			bool bulk = n > 0 && !disable_bank_cross_errors;
+			if (bulk) verifysnespos();
+			int pcpos = bulk && pass==2 ? snestopc(realsnespos&0xFFFFFF) : 0;
+			if (bulk && pass==2) bulk = pcpos >= 0 && snestopc((realsnespos+n-1)&0xFFFFFF) == pcpos+n-1;
+			if (bulk)
+			{
+				if (pass==2)
+				{
+					writeromdata(pcpos, data+start, n);
+					if (pcpos+n > romlen)
+					{
+						if (pcpos > romlen) writeromdata_bytes(romlen, default_freespacebyte, pcpos-romlen, false);
+						romlen = pcpos+n;
+					}
+				}
+				step(n);
+				ratsmetastate=ratsmeta_ban;
+			}
+			else for (int i=start;i<end;i++) write1((unsigned int)data[i]);
 			add_addr_to_line(addrToLinePos);
 		}
 	}

@@ -181,7 +181,10 @@ void removerats(int snesaddr, unsigned char clean_byte)
 	// randomdude999: don't forget bank borders
 	WalkMetadata(pctosnes(snestopc(addr)+8), handleprot);
 	addr=snestopc(addr);
-	for (int i=(romdata[addr+4]|(romdata[addr+5]<<8))+8;i>=0;i--) writeromdata_byte(addr+i, clean_byte);
+	// Quasar: this cleared the block a byte at a time, backwards, so every byte recorded a ROM
+	// write that merged into the one before it: two memmoves of the block list per byte of a
+	// 32KB table. One write clears and records the same bytes.
+	writeromdata_bytes(addr, clean_byte, (romdata[addr+4]|(romdata[addr+5]<<8))+9);
 }
 
 static inline int trypcfreespace(int start, int end, int size, int banksize, int minalign, unsigned char freespacebyte)
