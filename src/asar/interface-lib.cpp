@@ -226,6 +226,12 @@ struct patchparams : public patchparams_v160
 
 };
 
+// Quasar: the 16MB working ROM is kept between patches. A fresh one each patch cost a 16MB
+// clear and its page faults; now only what an earlier patch left past this ROM's end is cleared.
+// Every write lands below the final romlen, so that is the high-water mark.
+static unsigned char * workrom;
+static int workrom_hiwater;
+
 static void asar_patch_begin(char * romdata_, int buflen, int * romlen_, bool should_reset)
 {
 	if (buflen != maxromsize)
@@ -234,10 +240,12 @@ static void asar_patch_begin(char * romdata_, int buflen, int * romlen_, bool sh
 		memcpy(const_cast<unsigned char*>(romdata_r)/*we just allocated this, it's safe to violate its const*/, romdata_, (size_t)*romlen_);
 	}
 	else romdata_r = (unsigned char*)romdata_;
-	romdata = (unsigned char*)malloc(maxromsize);
 	// RPG Hacker: Without this memset, freespace commands can (and probably will) fail.
-	memset((void*)romdata, 0, maxromsize);
+	if (!workrom) workrom = (unsigned char*)calloc(maxromsize, 1);
+	romdata = workrom;
 	memcpy(const_cast<unsigned char*>(romdata), romdata_, (size_t)*romlen_);
+	if (workrom_hiwater > *romlen_) memset(const_cast<unsigned char*>(romdata) + *romlen_, 0, (size_t)(workrom_hiwater - *romlen_));
+	workrom_hiwater = *romlen_;
 	if (should_reset)
 		resetdllstuff();
 	romlen = *romlen_;
@@ -262,14 +270,11 @@ static void asar_patch_main(const char * patchloc)
 
 static bool asar_patch_end(char * romdata_, int buflen, int * romlen_)
 {
+	if (romlen > workrom_hiwater) workrom_hiwater = romlen;
 	if (checksum_fix_enabled) fixchecksum();
 	if (romdata_ != (const char*)romdata_r) free(const_cast<unsigned char*>(romdata_r));
 	if (buflen < romlen) asar_throw_error(pass, error_type_null, error_id_buffer_too_small);
-	if (errored)
-	{
-		free(const_cast<unsigned char*>(romdata));
-		return false;
-	}
+	if (errored) return false;
 	if (*romlen_ != buflen)
 	{
 		*romlen_ = romlen;
@@ -277,7 +282,6 @@ static bool asar_patch_end(char * romdata_, int buflen, int * romlen_)
 	lastrom = (const unsigned char*)romdata_;
 	lastromlen = romlen;
 	memcpy(romdata_, romdata, (size_t)romlen);
-	free(const_cast<unsigned char*>(romdata));
 	return true;
 }
 
