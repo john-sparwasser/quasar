@@ -1,6 +1,7 @@
 #pragma once
 
 #include "std-includes.h"
+#include <cstdint>
 //ty alcaro
 extern const unsigned char char_props[256];
 static inline int to_lower(unsigned char c) { return c|(char_props[c]&0x20); }
